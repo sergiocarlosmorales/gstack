@@ -1,5 +1,36 @@
 # gstack
 
+## Bob Shell setup
+
+### New machine
+
+Run this once after cloning. Installs all gstack skills as bob slash commands, builds the browse binary, and sets up the shell environment.
+
+```bash
+git clone https://github.com/sergiocarlosmorales/gstack ~/code/gstack
+cd ~/code/gstack
+./setup-bob
+source ~/.zshrc   # or ~/.bashrc
+```
+
+### Per-project (required — run once per repo)
+
+Bob sandboxes file reads to the project directory. Run this inside each project where you want to use gstack skills, so cross-skill loading works:
+
+```bash
+cd your-project
+~/code/gstack/setup-bob-project
+```
+
+Re-run after pulling gstack updates:
+
+```bash
+cd ~/code/gstack && git pull && ./setup-bob
+cd your-project && ~/code/gstack/setup-bob-project
+```
+
+---
+
 > "I don't think I've typed like a line of code probably since December, basically, which is an extremely large change." — [Andrej Karpathy](https://fortune.com/2026/03/21/andrej-karpathy-openai-cofounder-ai-agents-coding-state-of-psychosis-openclaw/), No Priors podcast, March 2026
 
 When I heard Karpathy say this, I wanted to find out how. How does one person ship like a team of twenty? Peter Steinberger built [OpenClaw](https://github.com/openclaw/openclaw) — 247K GitHub stars — essentially solo with AI agents. The revolution is here. A single builder with the right tooling can move faster than a traditional team.

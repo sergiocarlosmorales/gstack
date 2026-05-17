@@ -1,0 +1,126 @@
+#!/usr/bin/env bash
+# setup-bob — install gstack skills for IBM Bob Shell
+#
+# Usage: ./setup-bob [--shell-config PATH]
+#
+# Run from the cloned gstack repo directory. Installs all gstack slash commands
+# into ~/.bob/commands/ and sets up the runtime at ~/.bob/skills/gstack/.
+#
+# Requirements: bob (already installed), bun, git, curl
+set -e
+umask 077
+
+REPO_DIR="$(cd "$(dirname "$0")" && pwd -P)"
+SHELL_CONFIG=""
+
+while [ $# -gt 0 ]; do
+  case "$1" in
+    --shell-config) SHELL_CONFIG="$2"; shift 2 ;;
+    -h|--help)
+      echo "Usage: ./setup-bob [--shell-config PATH]"
+      echo ""
+      echo "  --shell-config PATH   Shell config file to append env vars to"
+      echo "                        (default: auto-detect ~/.bashrc or ~/.zshrc)"
+      exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; exit 1 ;;
+  esac
+done
+
+# ─── Preflight checks ────────────────────────────────────────
+
+echo "==> Checking prerequisites..."
+
+if ! command -v bob >/dev/null 2>&1; then
+  echo "Error: 'bob' not found on PATH." >&2
+  echo "  Install IBM Bob Shell and ensure 'bob' is on your PATH." >&2
+  exit 1
+fi
+echo "  bob: $(bob --version 2>/dev/null || echo 'found')"
+
+if ! command -v bun >/dev/null 2>&1; then
+  echo "Error: 'bun' is required but not installed." >&2
+  echo "Install it:" >&2
+  echo "  curl -fsSL https://bun.sh/install | bash" >&2
+  echo "  # then reload your shell and re-run this script" >&2
+  exit 1
+fi
+echo "  bun: $(bun --version)"
+
+if ! command -v git >/dev/null 2>&1; then
+  echo "Error: 'git' is required but not installed." >&2
+  exit 1
+fi
+
+# ─── Install dependencies ────────────────────────────────────
+
+echo ""
+echo "==> Installing dependencies..."
+cd "$REPO_DIR"
+bun install --frozen-lockfile 2>/dev/null || bun install
+
+# ─── Build browse binary ─────────────────────────────────────
+
+echo ""
+echo "==> Building browse binary (this takes 30-90s on first run)..."
+bun run build
+
+if [ ! -f "$REPO_DIR/browse/dist/browse" ]; then
+  echo "Error: build did not produce browse/dist/browse" >&2
+  exit 1
+fi
+echo "  browse binary: ok"
+
+# ─── Run gstack setup for bob ────────────────────────────────
+
+echo ""
+echo "==> Setting up gstack for bob..."
+"$REPO_DIR/setup" --host bob
+
+# ─── Write GSTACK_* env vars to shell config ─────────────────
+
+echo ""
+echo "==> Configuring shell environment..."
+
+# Auto-detect shell config if not specified
+if [ -z "$SHELL_CONFIG" ]; then
+  if [ -n "$ZSH_VERSION" ] || [ "$(basename "${SHELL:-}")" = "zsh" ]; then
+    SHELL_CONFIG="$HOME/.zshrc"
+  elif [ -f "$HOME/.bashrc" ]; then
+    SHELL_CONFIG="$HOME/.bashrc"
+  elif [ -f "$HOME/.bash_profile" ]; then
+    SHELL_CONFIG="$HOME/.bash_profile"
+  else
+    SHELL_CONFIG="$HOME/.bashrc"
+  fi
+fi
+
+GSTACK_ENV_MARKER="# gstack-bob env vars"
+
+if grep -q "$GSTACK_ENV_MARKER" "$SHELL_CONFIG" 2>/dev/null; then
+  echo "  GSTACK_* vars already present in $SHELL_CONFIG — skipping."
+else
+  cat >> "$SHELL_CONFIG" << 'EOF'
+
+# gstack-bob env vars
+export GSTACK_ROOT="$HOME/.bob/skills/gstack"
+export GSTACK_BIN="$GSTACK_ROOT/bin"
+export GSTACK_BROWSE="$GSTACK_ROOT/browse/dist"
+export GSTACK_DESIGN="$GSTACK_ROOT/design/dist"
+EOF
+  echo "  Added GSTACK_* vars to $SHELL_CONFIG"
+fi
+
+# ─── Done ────────────────────────────────────────────────────
+
+echo ""
+echo "gstack for bob is ready!"
+echo ""
+echo "  Commands installed in: ~/.bob/commands/"
+echo "  Runtime at:            ~/.bob/skills/gstack/"
+echo ""
+echo "  Reload your shell:     source $SHELL_CONFIG"
+echo "  Then try:              bob /gstack-investigate"
+echo ""
+echo "  Skills available:"
+ls "$HOME/.bob/commands/" 2>/dev/null | sed 's/\.md$//' | sed 's/^/    \//' | sort || true
+echo ""

@@ -1,5 +1,19 @@
 # TODOS
 
+## Bob Shell host
+
+### P3: Upstream bob host to garrytan/gstack
+
+**What:** The `hosts/bob.ts` config, `docs/BOB_DEPLOYMENT.md`, and `setup` changes
+for IBM Bob Shell were developed in a fork. Contribute them upstream as a PR.
+
+**Why:** Other gstack users who want bob support would benefit, and the upstream
+maintainer may want to keep host parity with other alternative AI shells.
+
+**Before opening PR:** Confirm bob slash command discovery path (`~/.bob/commands/*.md`)
+against latest bob docs, and verify tool name accuracy (`execute_command`, `read_file`,
+`write_to_file`, `apply_diff`, `search_files`, `list_files`, `ask_followup_question`).
+
 ## /sync-gbrain memory stage perf follow-up
 
 ### P2: Investigate `gbrain import` perf on large staging dirs

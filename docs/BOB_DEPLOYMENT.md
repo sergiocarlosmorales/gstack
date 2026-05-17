@@ -89,7 +89,22 @@ bob /gstack-ship --help 2>/dev/null || echo "Skills linked — run 'bob /gstack-
 
 You should see gstack-* commands in the listing.
 
-## Step 7: Configure AGENTS.md (optional but recommended)
+## Step 7: Run per-project setup (required for sub-skill loading)
+
+Bob sandboxes file reads to the project workspace. Skills that invoke other skills (e.g. `/gstack-plan-ceo-review` loading `/gstack-office-hours` inline) read skill files by path. Without this step those reads fail with "File path must be within one of the workspace directories".
+
+Run once per project:
+
+```bash
+cd your-project
+/path/to/gstack/setup-bob-project
+```
+
+This copies skill files into `<project>/.bob/skills/gstack/` and gitignores them. The gstack preamble already has logic to prefer this project-local directory when it exists.
+
+Re-run the command after updating gstack (new skills or templates changed).
+
+## Step 8: Configure AGENTS.md (optional but recommended)
 
 gstack skills look for an `AGENTS.md` file in your project root (equivalent to Claude Code's `CLAUDE.md`). Create one with project-specific config:
 
@@ -103,7 +118,7 @@ cat > AGENTS.md << 'EOF'
 EOF
 ```
 
-## Updating gstack
+## Updating gstack (and refreshing per-project skills)
 
 To update to a newer version:
 
@@ -112,6 +127,13 @@ cd /path/to/gstack
 git pull
 bun run build
 ./setup --host bob
+```
+
+Then refresh each project that uses bob skills:
+
+```bash
+cd your-project
+/path/to/gstack/setup-bob-project
 ```
 
 ## Troubleshooting

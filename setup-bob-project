@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+# setup-bob-project — copy gstack skills into the current project workspace
+#
+# Bob's file sandbox only allows reading files within the project directory.
+# Cross-skill references (e.g. /plan-ceo-review loading /office-hours) fail
+# when the skills live at ~/.bob/skills/gstack/ outside the workspace.
+#
+# This script copies skill files into <project>/.bob/skills/gstack/ so bob
+# can read them. The gstack preamble already detects this local directory:
+#   [ -d "$_ROOT/.bob/skills/gstack" ] && GSTACK_ROOT="$_ROOT/.bob/skills/gstack"
+#
+# Usage: cd your-project && /path/to/gstack/setup-bob-project
+# Re-run after: git pull && bun run gen:skill-docs --host bob
+set -e
+
+BOB_COMMANDS="$HOME/.bob/commands"
+BOB_RUNTIME="$HOME/.bob/skills/gstack"
+PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+PROJECT_GSTACK="$PROJECT_ROOT/.bob/skills/gstack"
+
+echo "==> Checking prerequisites..."
+
+if ! ls "$BOB_COMMANDS"/gstack*.md >/dev/null 2>&1; then
+  echo "Error: no gstack commands found in $BOB_COMMANDS" >&2
+  echo "  Install gstack for bob first:" >&2
+  echo "    cd /path/to/gstack-repo && ./setup-bob" >&2
+  exit 1
+fi
+
+echo "  source: $BOB_COMMANDS"
+echo "  target: $PROJECT_GSTACK"
+echo ""
+
+mkdir -p "$PROJECT_GSTACK"
+
+# Copy each skill file to .bob/skills/gstack/<skill-name>/SKILL.md
+# The preamble references skills as $GSTACK_ROOT/office-hours/SKILL.md (no gstack- prefix),
+# so strip the leading "gstack-" from the command filename when creating the directory.
+count=0
+for cmd_file in "$BOB_COMMANDS"/gstack*.md; do
+  [ -f "$cmd_file" ] || continue
+  base="$(basename "$cmd_file" .md)"   # e.g. "gstack-office-hours" or "gstack"
+  if [ "$base" = "gstack" ]; then
+    skill_name="gstack"
+  else
+    skill_name="${base#gstack-}"       # "office-hours", "plan-ceo-review", etc.
+  fi
+  mkdir -p "$PROJECT_GSTACK/$skill_name"
+  cp "$cmd_file" "$PROJECT_GSTACK/$skill_name/SKILL.md"
+  count=$((count + 1))
+done
+
+echo "==> Copied $count skill files."
+
+# Symlink runtime dirs (bin, browse, gstack-upgrade) so GSTACK_BIN etc. still work.
+# These are shell-executed tools, not read_file calls — symlinks to ~/.bob/skills/gstack/
+# are fine for shell execution even though read_file would be blocked.
+for asset in bin browse gstack-upgrade ETHOS.md review; do
+  src="$BOB_RUNTIME/$asset"
+  dst="$PROJECT_GSTACK/$asset"
+  if [ -e "$src" ] && [ ! -e "$dst" ]; then
+    ln -s "$src" "$dst"
+  fi
+done
+
+echo "==> Runtime tools linked."
+
+# Add .bob/ to the project's .gitignore
+GITIGNORE="$PROJECT_ROOT/.gitignore"
+if [ -f "$GITIGNORE" ]; then
+  if ! grep -qxF ".bob/" "$GITIGNORE"; then
+    echo ".bob/" >> "$GITIGNORE"
+    echo "==> Added .bob/ to .gitignore"
+  else
+    echo "==> .bob/ already in .gitignore"
+  fi
+else
+  echo ".bob/" > "$GITIGNORE"
+  echo "==> Created .gitignore with .bob/"
+fi
+
+echo ""
+echo "gstack skills ready for this project!"
+echo "  $count skills in: $PROJECT_GSTACK"
+echo "  bob will now load cross-skill files from within the workspace."
+echo ""
+echo "  Re-run after updating gstack:"
+echo "    cd /path/to/gstack-repo && git pull && bun run gen:skill-docs --host bob"
+echo "    cd $PROJECT_ROOT && /path/to/gstack-repo/setup-bob-project"
+echo ""

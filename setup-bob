@@ -70,6 +70,15 @@ if [ ! -f "$REPO_DIR/browse/dist/browse" ]; then
 fi
 echo "  browse binary: ok"
 
+# ─── Generate bob skill docs ─────────────────────────────────
+# Always run explicitly — bun run build may skip this if the binary
+# already existed, leaving .bob/skills/ empty and all symlinks broken.
+
+echo ""
+echo "==> Generating bob skill docs..."
+bun run gen:skill-docs --host bob
+echo "  skill docs: ok"
+
 # ─── Run gstack setup for bob ────────────────────────────────
 
 echo ""

@@ -110,6 +110,22 @@ EOF
   echo "  Added GSTACK_* vars to $SHELL_CONFIG"
 fi
 
+# ─── Per-project setup ───────────────────────────────────────
+# Bob sandboxes read_file to the project workspace. Cross-skill references
+# fail if skills only live at ~/.bob/. Populate the current project now if
+# we're inside a git repo, so it works immediately.
+
+echo ""
+echo "==> Running per-project setup..."
+PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
+if [ -n "$PROJECT_ROOT" ]; then
+  "$REPO_DIR/setup-bob-project" && echo "  Project setup complete: $PROJECT_ROOT"
+else
+  echo "  (not inside a git repo — skipping)"
+  echo "  Run this in each project before using bob skills:"
+  echo "    $REPO_DIR/setup-bob-project"
+fi
+
 # ─── Done ────────────────────────────────────────────────────
 
 echo ""
@@ -120,6 +136,9 @@ echo "  Runtime at:            ~/.bob/skills/gstack/"
 echo ""
 echo "  Reload your shell:     source $SHELL_CONFIG"
 echo "  Then try:              bob /gstack-investigate"
+echo ""
+echo "  For each new project, run once:"
+echo "    $REPO_DIR/setup-bob-project"
 echo ""
 echo "  Skills available:"
 ls "$HOME/.bob/commands/" 2>/dev/null | sed 's/\.md$//' | sed 's/^/    \//' | sort || true

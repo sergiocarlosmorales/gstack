@@ -13,9 +13,11 @@ cd ~/code/gstack
 source ~/.zshrc   # or ~/.bashrc
 ```
 
-### Per-project (required — run once per repo)
+### Per-project (only if cross-skill loading fails)
 
-Bob sandboxes file reads to the project directory. Run this inside each project where you want to use gstack skills, so cross-skill loading works:
+`setup-bob` now copies all skills into `~/.bob/skills/gstack/`. If bob trusts `~/.bob/` by default, nothing else is needed.
+
+If you see errors like "could not load /office-hours" when running a skill, bob is sandboxing `~/.bob/` for your project. Fix it by running once per project:
 
 ```bash
 cd your-project
@@ -26,6 +28,7 @@ Re-run after pulling gstack updates:
 
 ```bash
 cd ~/code/gstack && git pull && ./setup-bob
+# if per-project setup was needed:
 cd your-project && ~/code/gstack/setup-bob-project
 ```
 

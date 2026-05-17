@@ -85,6 +85,32 @@ echo ""
 echo "==> Setting up gstack for bob..."
 "$REPO_DIR/setup" --host bob
 
+# ─── Populate ~/.bob/skills/gstack/ skill tree ───────────────
+# Bob's preamble sets GSTACK_ROOT="$HOME/.bob/skills/gstack" by default.
+# Cross-skill references (e.g. $GSTACK_ROOT/office-hours/SKILL.md) need
+# actual files there. We copy (not symlink) so they're self-contained and
+# readable regardless of where the repo lives.
+
+echo ""
+echo "==> Populating ~/.bob/skills/gstack/ skill tree..."
+BOB_SKILLS_SOURCE="$REPO_DIR/.bob/skills"
+BOB_GSTACK="$HOME/.bob/skills/gstack"
+_skill_count=0
+for _skill_dir in "$BOB_SKILLS_SOURCE"/gstack*/; do
+  [ -d "$_skill_dir" ] || continue
+  [ -f "$_skill_dir/SKILL.md" ] || continue
+  _dir_name="$(basename "$_skill_dir")"
+  if [ "$_dir_name" = "gstack" ]; then
+    _skill_name="gstack"
+  else
+    _skill_name="${_dir_name#gstack-}"   # strip "gstack-" prefix
+  fi
+  mkdir -p "$BOB_GSTACK/$_skill_name"
+  cp "$_skill_dir/SKILL.md" "$BOB_GSTACK/$_skill_name/SKILL.md"
+  _skill_count=$((_skill_count + 1))
+done
+echo "  $_skill_count skills copied to $BOB_GSTACK"
+
 # ─── Write GSTACK_* env vars to shell config ─────────────────
 
 echo ""
@@ -119,21 +145,15 @@ EOF
   echo "  Added GSTACK_* vars to $SHELL_CONFIG"
 fi
 
-# ─── Per-project setup ───────────────────────────────────────
-# Bob sandboxes read_file to the project workspace. Cross-skill references
-# fail if skills only live at ~/.bob/. Populate the current project now if
-# we're inside a git repo, so it works immediately.
+# ─── Per-project setup (fallback) ───────────────────────────
+# If ~/.bob/ is in bob's trusted folders, the global skill tree above is
+# enough and no per-project setup is needed. If bob sandboxes ~/.bob/ and
+# cross-skill loading fails, run setup-bob-project inside the project.
 
 echo ""
-echo "==> Running per-project setup..."
-PROJECT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || true)"
-if [ -n "$PROJECT_ROOT" ]; then
-  "$REPO_DIR/setup-bob-project" && echo "  Project setup complete: $PROJECT_ROOT"
-else
-  echo "  (not inside a git repo — skipping)"
-  echo "  Run this in each project before using bob skills:"
-  echo "    $REPO_DIR/setup-bob-project"
-fi
+echo "  Note: if cross-skill loading fails in bob (e.g. /plan-ceo-review"
+echo "  can't load /office-hours), run once per project:"
+echo "    cd your-project && $REPO_DIR/setup-bob-project"
 
 # ─── Done ────────────────────────────────────────────────────
 

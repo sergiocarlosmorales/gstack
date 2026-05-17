@@ -24,6 +24,8 @@ FACTORY_SKILLS="$HOME/.factory/skills"
 FACTORY_GSTACK="$FACTORY_SKILLS/gstack"
 OPENCODE_SKILLS="$HOME/.config/opencode/skills"
 OPENCODE_GSTACK="$OPENCODE_SKILLS/gstack"
+BOB_COMMANDS="$HOME/.bob/commands"
+BOB_GSTACK="$HOME/.bob/skills/gstack"
 
 IS_WINDOWS=0
 case "$(uname -s)" in
@@ -97,7 +99,7 @@ while [ $# -gt 0 ]; do
 done
 
 case "$HOST" in
-  claude|codex|kiro|factory|opencode|auto) ;;
+  claude|codex|kiro|factory|opencode|bob|auto) ;;
   openclaw)
     echo ""
     echo "OpenClaw integration uses a different model — OpenClaw spawns Claude Code"
@@ -132,7 +134,7 @@ case "$HOST" in
     echo "GBrain setup and brain skills ship from the GBrain repo."
     echo ""
     exit 0 ;;
-  *) echo "Unknown --host value: $HOST (expected claude, codex, kiro, factory, opencode, openclaw, hermes, gbrain, or auto)" >&2; exit 1 ;;
+  *) echo "Unknown --host value: $HOST (expected claude, codex, kiro, factory, opencode, bob, openclaw, hermes, gbrain, or auto)" >&2; exit 1 ;;
 esac
 
 # ─── Resolve skill prefix preference ─────────────────────────
@@ -196,14 +198,16 @@ INSTALL_CODEX=0
 INSTALL_KIRO=0
 INSTALL_FACTORY=0
 INSTALL_OPENCODE=0
+INSTALL_BOB=0
 if [ "$HOST" = "auto" ]; then
   command -v claude >/dev/null 2>&1 && INSTALL_CLAUDE=1
   command -v codex >/dev/null 2>&1 && INSTALL_CODEX=1
   command -v kiro-cli >/dev/null 2>&1 && INSTALL_KIRO=1
   command -v droid >/dev/null 2>&1 && INSTALL_FACTORY=1
   command -v opencode >/dev/null 2>&1 && INSTALL_OPENCODE=1
+  command -v bob >/dev/null 2>&1 && INSTALL_BOB=1
   # If none found, default to claude
-  if [ "$INSTALL_CLAUDE" -eq 0 ] && [ "$INSTALL_CODEX" -eq 0 ] && [ "$INSTALL_KIRO" -eq 0 ] && [ "$INSTALL_FACTORY" -eq 0 ] && [ "$INSTALL_OPENCODE" -eq 0 ]; then
+  if [ "$INSTALL_CLAUDE" -eq 0 ] && [ "$INSTALL_CODEX" -eq 0 ] && [ "$INSTALL_KIRO" -eq 0 ] && [ "$INSTALL_FACTORY" -eq 0 ] && [ "$INSTALL_OPENCODE" -eq 0 ] && [ "$INSTALL_BOB" -eq 0 ]; then
     INSTALL_CLAUDE=1
   fi
 elif [ "$HOST" = "claude" ]; then
@@ -216,6 +220,8 @@ elif [ "$HOST" = "factory" ]; then
   INSTALL_FACTORY=1
 elif [ "$HOST" = "opencode" ]; then
   INSTALL_OPENCODE=1
+elif [ "$HOST" = "bob" ]; then
+  INSTALL_BOB=1
 fi
 
 migrate_direct_codex_install() {
@@ -359,6 +365,16 @@ if [ "$INSTALL_OPENCODE" -eq 1 ] && [ "$NEEDS_BUILD" -eq 0 ]; then
     cd "$SOURCE_GSTACK_DIR"
     bun install --frozen-lockfile 2>/dev/null || bun install
     bun run gen:skill-docs --host opencode
+  )
+fi
+
+# 1e. Generate .bob/ IBM Bob Shell skill docs
+if [ "$INSTALL_BOB" -eq 1 ] && [ "$NEEDS_BUILD" -eq 0 ]; then
+  log "Generating .bob/ skill docs..."
+  (
+    cd "$SOURCE_GSTACK_DIR"
+    bun install --frozen-lockfile 2>/dev/null || bun install
+    bun run gen:skill-docs --host bob
   )
 fi
 
@@ -818,6 +834,76 @@ link_opencode_skill_dirs() {
   fi
 }
 
+create_bob_runtime_root() {
+  local gstack_dir="$1"
+  local bob_gstack="$2"
+
+  if [ -L "$bob_gstack" ]; then
+    rm -f "$bob_gstack"
+  elif [ -d "$bob_gstack" ] && [ "$bob_gstack" != "$gstack_dir" ]; then
+    rm -rf "$bob_gstack"
+  fi
+
+  mkdir -p "$bob_gstack" "$bob_gstack/browse" "$bob_gstack/review"
+
+  if [ -d "$gstack_dir/bin" ]; then
+    _link_or_copy "$gstack_dir/bin" "$bob_gstack/bin"
+  fi
+  if [ -d "$gstack_dir/browse/dist" ]; then
+    _link_or_copy "$gstack_dir/browse/dist" "$bob_gstack/browse/dist"
+  fi
+  if [ -d "$gstack_dir/browse/bin" ]; then
+    _link_or_copy "$gstack_dir/browse/bin" "$bob_gstack/browse/bin"
+  fi
+  if [ -d "$gstack_dir/gstack-upgrade" ]; then
+    _link_or_copy "$gstack_dir/gstack-upgrade" "$bob_gstack/gstack-upgrade"
+  fi
+  for f in checklist.md TODOS-format.md; do
+    if [ -f "$gstack_dir/review/$f" ]; then
+      _link_or_copy "$gstack_dir/review/$f" "$bob_gstack/review/$f"
+    fi
+  done
+  if [ -f "$gstack_dir/ETHOS.md" ]; then
+    _link_or_copy "$gstack_dir/ETHOS.md" "$bob_gstack/ETHOS.md"
+  fi
+}
+
+link_bob_skill_dirs() {
+  local gstack_dir="$1"
+  local commands_dir="$2"
+  local bob_dir="$gstack_dir/.bob/skills"
+  local linked=()
+
+  if [ ! -d "$bob_dir" ]; then
+    echo "  Generating .bob/ skill docs..."
+    ( cd "$gstack_dir" && bun run gen:skill-docs --host bob )
+  fi
+
+  if [ ! -d "$bob_dir" ]; then
+    echo "  warning: .bob/skills/ generation failed — run 'bun run gen:skill-docs --host bob' manually" >&2
+    return 1
+  fi
+
+  mkdir -p "$commands_dir"
+
+  # Bob reads flat .md files from ~/.bob/commands/ — symlink each skill's SKILL.md
+  # as {skill-name}.md so bob discovers it as a slash command.
+  for skill_dir in "$bob_dir"/gstack*/; do
+    if [ -f "$skill_dir/SKILL.md" ]; then
+      skill_name="$(basename "$skill_dir")"
+      [ "$skill_name" = "gstack" ] && continue
+      target="$commands_dir/${skill_name}.md"
+      if [ -L "$target" ] || [ ! -e "$target" ]; then
+        _link_or_copy "$skill_dir/SKILL.md" "$target"
+        linked+=("$skill_name")
+      fi
+    fi
+  done
+  if [ ${#linked[@]} -gt 0 ]; then
+    echo "  linked commands: ${linked[*]}"
+  fi
+}
+
 # 4. Install for Claude (default)
 SKILLS_BASENAME="$(basename "$INSTALL_SKILLS_DIR")"
 SKILLS_PARENT_BASENAME="$(basename "$(dirname "$INSTALL_SKILLS_DIR")")"
@@ -1021,6 +1107,23 @@ if [ "$INSTALL_OPENCODE" -eq 1 ]; then
   echo "gstack ready (opencode)."
   echo "  browse: $BROWSE_BIN"
   echo "  opencode skills: $OPENCODE_SKILLS"
+fi
+
+# 6d. Install for IBM Bob Shell
+if [ "$INSTALL_BOB" -eq 1 ]; then
+  mkdir -p "$BOB_COMMANDS"
+  create_bob_runtime_root "$SOURCE_GSTACK_DIR" "$BOB_GSTACK"
+  link_bob_skill_dirs "$SOURCE_GSTACK_DIR" "$BOB_COMMANDS"
+  echo "gstack ready (bob)."
+  echo "  browse: $BROWSE_BIN"
+  echo "  bob commands: $BOB_COMMANDS"
+  echo "  bob runtime: $BOB_GSTACK"
+  echo ""
+  echo "  Add to your shell config (~/.bashrc or ~/.zshrc):"
+  echo "    export GSTACK_ROOT=\"\$HOME/.bob/skills/gstack\""
+  echo "    export GSTACK_BIN=\"\$GSTACK_ROOT/bin\""
+  echo "    export GSTACK_BROWSE=\"\$GSTACK_ROOT/browse/dist\""
+  echo "    export GSTACK_DESIGN=\"\$GSTACK_ROOT/design/dist\""
 fi
 
 # 7. Create .agents/ sidecar symlinks for the real Codex skill target.

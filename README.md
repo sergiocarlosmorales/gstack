@@ -32,6 +32,8 @@ cd ~/code/gstack && git pull && ./setup-bob
 cd your-project && ~/code/gstack/setup-bob-project
 ```
 
+**For contributors and future LLMs:** `docs/BOB.md` contains everything learned while adding bob as a gstack host — tool name mapping, file sandbox rules, slash command discovery, directory layout, open questions, and a recipe for reimplementing bob support from scratch.
+
 ---
 
 > "I don't think I've typed like a line of code probably since December, basically, which is an extremely large change." — [Andrej Karpathy](https://fortune.com/2026/03/21/andrej-karpathy-openai-cofounder-ai-agents-coding-state-of-psychosis-openclaw/), No Priors podcast, March 2026
